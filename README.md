@@ -11,8 +11,8 @@ This repository contains the code for
 <P>The Shiny app can be accessed at : 
 https://raynernyc.shinyapps.io/TextPredictionApp/
 
-<BR>The slide deck can be viewed at :
+The slide deck can be viewed at :
 http://rpubs.com/RaynerNYC/TextPredictionApp
 
-<BR>Milestone Report can be read at:
+Milestone Report can be read at:
 http://rpubs.com/RaynerNYC/MilestoneReport
