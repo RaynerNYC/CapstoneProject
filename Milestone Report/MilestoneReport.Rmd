@@ -1,0 +1,515 @@
+---
+title: "Milestone Report"
+author: "RaynerNYC"
+date: "March 11, 2016"
+output: html_document
+---
+
+
+### Background and Introduction
+This milestone report is part of the assignment for coursera's Data Science Capstone project. 
+This document explains the exploratory analysis by describing the major features of the English datasets which is going to be used for creating the prediction algorithm and Shiny app. It also briefly summarize the plans in a way that would be understandable to a non-data scientist manager. 
+
+The objectives for this report are to:   
+1. Download the data and load the files.  
+2. Create a basic report of summary statistics about the data sets.  
+3. Report any interesting findings.  
+4. Get feedback on the plan for creating a prediction algorithm and Shiny app.  
+
+
+### 1. Import and loading Data
+Firstly, set the working directory, load the R packages needed for analysis and load the source files. 
+The source data is based on the English Database and can be downloaded [here](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip).
+
+```{r, echo=FALSE}
+setwd("C:/Users/603994546/WORK/training/Coursera - Data Science Specialization/Capstone/MilestoneReport")
+```
+
+```{r eval=FALSE}
+#set the working directory with your own system path
+setwd("C:/Capstone/MilestoneReport")
+
+# set the file name and source download link
+source_file_name <- "Coursera-SwiftKey.zip"
+source_link <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+
+# execute to download the file
+download.file(source_link, source_file_name)
+
+# extract the zip file
+unzip(source_file_name)
+```
+
+```{r echo=FALSE}
+if (Sys.getenv("JAVA_HOME")!="") Sys.setenv(JAVA_HOME="C:/Program Files/Java/jdk1.6.0_38")
+library(rJava)
+```
+
+```{r  results="hide", eval = TRUE, message = FALSE, error = FALSE, warning = FALSE, cache = FALSE}
+# load the required packages 
+library(stringi)    # library for analysing string character
+library(ggplot2)    # library for plotting
+library(tm)         # library for text mining
+library(RWeka)      # Text Mining & Corpus Functions (similar like quanteda)
+library(wordcloud)  # Word Cloud visualisation
+```
+
+```{r results="hide", eval=FALSE}
+# read the source files from working directory
+blog <- readLines( con <- file("./final/en_US/en_US.blogs.txt"), encoding = "UTF-8", skipNul=TRUE)
+close(con)
+
+news <- readLines( con <- file("./final/en_US/en_US.news.txt", open="rb"), encoding = "UTF-8", skipNul=TRUE, warn=FALSE)
+close(con)
+
+twitter <- readLines( con <- file("./final/en_US/en_US.twitter.txt"), encoding = "UTF-8", skipNul=TRUE)
+close(con)
+```
+
+```{r results="hide", echo=FALSE, eval=FALSE}
+saveRDS(blog, file = "blogRaw.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(news, file = "newsRaw.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(twitter, file = "twitterRaw.rds", ascii = FALSE, version = NULL, compress = TRUE)
+```
+
+```{r readingRDS_raw, results="hide", echo=FALSE, eval=TRUE}
+blog <- readRDS("blogRaw.rds")
+news <- readRDS("newsRaw.rds")
+twitter <- readRDS("twitterRaw.rds")
+```
+   
+### 2. Data Exploratory
+Exploratory analysis is carried out on the three different datasets based on the file size, total lines, total word count, maximum number of characters per line seen and statistical summary of word count per line.   
+   
+Overview of the contents of the datasets as follows:   
+```{r eval=FALSE}
+head(blog)
+head(news)
+head(twitter)
+```
+
+      
+#### 2.1. File sizes for each datasets, calculated in MegaBytes(MB):
+```{r results="hide", eval=FALSE}
+# Get the file size of datasets in MB
+file.info("./final/en_US/en_US.blogs.txt")$size / 1024^2
+file.info("./final/en_US/en_US.news.txt")$size / 1024^2
+file.info("./final/en_US/en_US.twitter.txt")$size / 1024^2
+```
+
+There are 3 file sources, namely blogs.txt, news.txt and twitter.txt with the respective file size (200.42MB, 196.28MB, 159.36MB).  
+   
+#### 2.2. Total number of lines for each datasets:
+```{r eval=FALSE}
+# Get the total lines for datasets
+length(blog)
+length(news)
+length(twitter)
+```
+
+The dataset for twitter text has the largest observations, with more than 2 millions elements while news has 1010242 elements and blog has 899288 elements.  
+
+   
+#### 2.3. Total words count for each datasets:
+```{r eval=FALSE}
+# Get total number of word count for datasets
+sum(sapply(gregexpr("\\S+",blog), length))
+sum(sapply(gregexpr("\\S+",news), length))
+sum(sapply(gregexpr("\\S+",twitter), length))
+```
+
+Blog text has 37.33 millions words.
+News text has 34.37 millions words.
+Twitter text has 30.37 millions words.   
+      
+#### 2.4. Total number of characters for the longest line seen in each datasets:
+```{r eval=FALSE}
+#Get the number of characters from the longest line in datasets
+tmax <- which.max(nchar(blog))
+nchar(blog[tmax])
+
+tmax <- which.max(nchar(news))
+nchar(news[tmax])
+
+tmax <- which.max(nchar(twitter))
+nchar(twitter[tmax])
+```   
+   
+#### 2.5. Statistical summary of the word count per line for each datasets:
+```{r summary_statisticing}
+# Get number of word count per line for dataset
+summary(stri_count_words(blog))
+summary(stri_count_words(news))
+summary(stri_count_words(twitter))
+```
+   
+Based on all the results found, the differences are populated in the table below. They are plotted in a bar charts to show the comparison graphically.  
+
+Datasets  | Size (MB) | Total Lines | Total Words (mill.) | Max characters per Line | Max words per Line
+--------- | --------- | ----------- | ------------------- | ----------------------- | ------------------
+Blog      |   200.42	|    899 288	|       37.33         |         40 833          |         6726
+News      |   196.28	|  1 010 242	|       34.37         |         11 384          |         1796
+Twitter	  |   159.36  |  2 360 148	|       30.37         |            140          |           47
+
+```{r comparison_ggploting1, echo=FALSE}
+plot1data <- data.frame(Comparison = c('Total Lines', 'Total Lines', 'Total Lines','Total Words', 'Total Words', 'Total Words'), 
+Datasets = c("Blog", "News", "Twitter", "Blog", "News", "Twitter"), 
+Total_In_Millions = c(0.90,1.01,2.36,37.33,34.37,30.37))
+
+ggplot(plot1data, aes(Comparison, Total_In_Millions, fill = Datasets)) + geom_bar(position = "dodge", width = 0.5, stat = "identity") + labs(title = "Plot 1 : Comparison of Total Lines and Total Words", y = "Total (millions)")
+```
+
+```{r comparison_ggploting2, echo=FALSE}
+plot2data <- data.frame(Comparison = c('Max Characters per Line', 'Max Characters per Line', 'Max Characters per Line','Max Words per Line', 'Max Words per Line', 'Max Words per Line'), 
+Datasets = c("Blog", "News", "Twitter", "Blog", "News", "Twitter"), 
+Total_In_Thousands = c(40833/1000, 11384/1000, 140/1000, 6726/1000, 1796/1000 ,47/1000))
+
+ggplot(plot2data, aes(Comparison, Total_In_Thousands, fill = Datasets)) + geom_bar(position = "dodge", width = 0.5, stat = "identity") + labs(title = "Plot 2 : Comparison of Max Characters and Words per Line", y = "Total (thousands)")
+```  
+   
+   
+### 3. Data exploratory analysis    
+      
+The interesting findings that I observed are :  
+   
+1. Based on Plot 1, blog dataset has the lowest number of lines but it has the highest number of words. This is totally opposite compared to twitter dataset, that has highest number of lines but lowest number of words.   
+   
+2. Based on Plot 2, the maximum number of characters per line in twitter dataset is small and it is not significant or hardly comparable to the blog dataset. Same goes with the maximum number of words per line which is the least among the three datasets.   
+   
+3. Blog and twitter datasets contains character or combination of characters that are not an english words, example: Btw, DC, Ughh, :). It also contains capital letters at random position or no capital letter at the beginning of the sentences.  
+   
+4. Other than English words, all the datasets contains:   
+a) Numbers   
+b) Punctuations   
+c) White spaces  
+
+    
+### 4. Proposed plans for creating a prediction algorithm and Shiny app
+
+The prediction algorithm is based on text mining and natural language processing methodology. I intended to use N-Grams to build the language model based on the text datasets (corpus) from blog, news and twitter. It is basically a group of N words formed from a given sequence of text or speech. The items can be phonemes, syllables, letters, words or base pairs according to the application. 
+
+After completing the data exploratory, my proposed plans in developing the prediction applications would be as follows:   
+
+#### Step 1. Sample data   
+
+The 3 datasets has a combination of more than 100 millions words and about 550MB in size. This huge datasets would take a longer time to process and the prediction model will be very large. Sampling will reduce the datasets so that the Shiny app will have a better performance especially for mobile devices while has smaller memory.  
+
+Twitter has less words per lines due to the limitation of 140 characters. Therefore its maximum character and maximum word count are the least among the 3 datasets. Logically, twitter dataset can be omitted since each line has less words that can be used to build the prediction model.  
+
+However, to have a better prediction coverage by using various corpus sources, twitter is included in the prediction model. The plan is to sample 5% from each datasets and multiply with a weight based on the ratio of word count for each datasets over the total overall word count. The ratio will give a better weight during sampling to blog dataset compared to twitter.
+
+```{r eval=FALSE}
+# Calculating ratio based on word count of each datasets
+blog.ratio <- round(6726/8569*length(blog))
+news.ratio <- round(1796/8569*length(news))
+twitter.ratio <- round(47/8569*length(twitter))
+```
+
+```{r sampling_datasets, eval=FALSE}
+# Sampling from each datasets
+blog.sample <- sample(blog, blog.ratio*0.05)
+news.sample <- sample(news, news.ratio*0.05)
+twitter.sample <- sample(twitter, twitter.ratio*0.05)
+```
+
+```{r combining_sampling, eval=FALSE}
+# Combining all sampled
+all.sample <- c(blog.sample, news.sample, twitter.sample)
+summary(all.sample)
+```
+
+```{r eval=FALSE, echo=FALSE, message = FALSE, error = FALSE, warning = FALSE, cache = FALSE}
+summary(blog.sample)
+head(blog.sample)
+summary(news.sample)
+head(news.sample)
+summary(twitter.sample)
+head(twitter.sample)
+summary(all.sample)
+head(all.sample)
+```
+
+```{r echo=FALSE, eval=FALSE}
+# save(all.sample, file = "all.sample.rda")
+saveRDS(all.sample, file = "all.sampled.rds", ascii = FALSE, version = NULL, compress = TRUE)
+```
+
+   
+#### Step 2. Data cleaning   
+
+In order to build the prediction model, meaningful words are required to be extracted from the corpus. The datasets needs to be cleaned before they can be used in modeling.  
+
+```{r echo=TRUE, eval=FALSE}
+# Removing unwanted characters and Convert UTF-8 to ASCII 
+all.sample <- iconv(all.sample, 'UTF-8', 'ASCII', "byte")
+
+# Covert to corpus class 
+all.corpus <- Corpus(VectorSource(all.sample))
+```
+
+```{r echo=FALSE, eval=FALSE}
+# save(all.corpus, file = "all.corpus.rda")
+saveRDS(all.corpus, file = "all.sampled.corpus.rds", ascii = FALSE, version = NULL, compress = TRUE)
+```
+
+```{r eval=FALSE, echo=FALSE}
+  #### SAMPLE from Stephen ##################################################################################
+  all.corpus <- VCorpus(VectorSource(all.sample)) # Building the main corpus   ????
+
+  # Perform filtering of text
+  all.corpus <- tm_map(all.corpus, removeNumbers) # Removing numbers
+  all.corpus <- tm_map(all.corpus, removePunctuation) # Removing special characters
+  all.corpus <- tm_map(all.corpus, stripWhitespace) # Removing whitespaces
+  all.corpus <- tm_map(all.corpus, content_transformer(tolower)) # Convert to lowercase
+  all.corpus <- tm_map(all.corpus, sent_detect) # Split lines to sentences
+  all.corpus <- tm_map(all.corpus, removeWords, WordFilterList) # Filter out profane language
+ ###########################################################################################################
+```
+ 
+  
+```{r echo=TRUE, eval=FALSE}
+all.corpus <- tm_map(all.corpus, removeNumbers)       # Removing numbers
+all.corpus <- tm_map(all.corpus, removePunctuation)   # Removing punctuation
+all.corpus <- tm_map(all.corpus, stripWhitespace)     # Removing white spaces
+all.corpus <- tm_map(all.corpus, tolower)             # Convert to lower case letters
+all.corpus <- tm_map(all.corpus, PlainTextDocument)   # Convert to plain text
+```
+
+```{r echo=FALSE, eval = FALSE, message = FALSE, error = FALSE, warning = FALSE, cache = FALSE}
+# Save data to load faster
+#save(blog.corpus, file="blogs.corpus.sampled1.RData")
+#save(news.corpus, file="news.corpus.sampled1.RData")
+#save(twitter.corpus, file="twitter.corpus.sampled1.RData")
+#all <- c(blog.corpus,news.corpus,twitter.corpus)
+#save(all, file="all.corpus.sampled.clean1.RData")
+```
+
+```{r echo=FALSE, eval=FALSE}
+#save(all.corpus, file="all.sampled.corpus.clean1.rda")
+saveRDS(all.corpus, file = "all.sampled.corpus.clean1.rds", ascii = FALSE, version = NULL, compress = TRUE)
+```
+
+```{r echo=FALSE, eval=TRUE, message = FALSE, error = FALSE, warning = FALSE}
+# cleaning up
+rm(blog)
+rm(twitter)
+rm(news)
+
+#rm(blog.sample)
+#rm(twitter.sample)
+#rm(news.sample)
+#rm(all.sample)
+```
+
+```{r allcorpus_readingclean1, echo=FALSE, eval=TRUE}
+all.corpus <- readRDS("all.sampled.corpus.clean1.rds")
+all.corpus <- readRDS("all.sampled.10pc.clean.rds")
+```
+
+```{r echo=FALSE, eval=FALSE}
+# resample 5% (maooooo)
+all.corpus <- sample(all.corpus, length(all.corpus)*0.05)
+saveRDS(all.corpus, file = "all.sampled.5pc.clean.rds", ascii = FALSE, version = NULL, compress = TRUE)
+```
+
+
+Corpus which has been clean can be visualised using wordcloud library. It could display the most frequently occurring features / words in the corpus.   
+   
+Plot 3 : Top 200 Most Frequent Words
+```{r wordclouding}
+# displaying top 200 most frequent words (features)
+wordcloud(all.corpus, max.words = 200, random.order = FALSE, rot.per = 0.35, use.r.layout = FALSE, colors=brewer.pal(8, "Dark2"))
+```
+   
+#### Step 3. Creating N-Grams model
+   
+N-Grams are typically collected from a text or speech corpus. If the item is a single word, the N-Gram is referred as single word N-Gram or Uni-Gram. Using RWeka library, a total of 5 N-Gram Models are created from the sampled and cleaned datasets where Uni-Gram consists of 1 word, Bi-Grams having 2 words, Tri-Grams consisting of 3 words till Five-Grams having 5 words. These N-Grams are sorted by frequency from the highest to the lowest.  
+
+```{r echo = TRUE, eval = FALSE, message = TRUE, error = TRUE, warning = TRUE, cache=FALSE}
+# Tokenizer functions
+unigram_token <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 1))
+bigram_token <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+trigram_token <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+fourgram_token <- function(x) NGramTokenizer(x, Weka_control(min = 4, max = 4))
+fivegram_token <- function(x) NGramTokenizer(x, Weka_control(min = 5, max = 5))
+
+# Creating Term Document Matrix
+NGram <- TermDocumentMatrix(all.corpus, control=list(tokenize=unigram_token))
+BiGram <- TermDocumentMatrix(all.corpus, control=list(tokenize=bigram_token))
+TriGram <- TermDocumentMatrix(all.corpus, control=list(tokenize=trigram_token))
+QuadGram <- TermDocumentMatrix(all.corpus, control=list(tokenize=fourgram_token))
+FiveGram <- TermDocumentMatrix(all.corpus, control=list(tokenize=fivegram_token))
+```
+
+```{r allcorpus_dataframing, echo = FALSE, eval = TRUE}
+#all.corpus <-data.frame(text = unlist(sapply(all.corpus, `[`, "content")), stringsAsFactors = FALSE)
+
+#save rds
+#saveRDS(all.corpus, file = "all.sampled.corpus.clean1.dataframe.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(NGram, file = "all.sampled.5pc.corpus.clean2.tdm.ngram.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(BiGram, file = "all.sampled.5pc.corpus.clean2.tdm.bigram.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(TriGram, file = "all.sampled.5pc.corpus.clean2.tdm.trigram.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(QuadGram, file = "all.sampled.5pc.corpus.clean2.tdm.quadgram.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(FiveGram, file = "all.sampled.5pc.corpus.clean2.tdm.fivegram.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#open rds
+all.corpus <- readRDS("all.sampled.corpus.clean1.dataframe.rds")
+```
+
+```{r Ngram_tokenizing, echo = FALSE, eval = FALSE}
+NGram     <- NGramTokenizer(all.corpus, Weka_control(min = 1, max = 1, delimiters = " \\r\\n\\t.,;:\"()?!"))
+
+#save rds
+saveRDS(NGram, file = "ngram10pctTokenized.withProfanity.rds", ascii = FALSE, version = NULL, compress = TRUE)
+saveRDS(NGram, file = "ngram5pctTokenized.withProfanity.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#read rds
+NGram <- readRDS("NGram5pct.Tokenizer.rds")
+```
+
+  
+```{r ngram_dataframing, echo = TRUE, eval = FALSE}
+## plot NGram graph
+NGram     <- data.frame(table(NGram))
+NGram     <- NGram[order(NGram$Freq, decreasing = TRUE),][1:10,]
+colnames(NGram) <- c("Words","Count")
+```
+
+```{r echo=FALSE, eval=TRUE}
+#save rds
+#saveRDS(NGram, file = "NGram5pct.dataframe.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#read rds
+NGram <- readRDS("NGram5pct.dataframe.rds")
+```
+
+```{r ngram_ggploting, echo=TRUE, eval=TRUE}
+ggplot(NGram[1:10,], aes(reorder(Words, -Count), Count)) +
+         labs(x = "10 Highest Frequency Unigrams", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1)) +
+         geom_bar(stat = "identity", fill = I("blue"))
+
+```
+
+```{r echo = FALSE, eval = TRUE}
+rm(NGram)
+```
+
+```{r BiGram_Tokenizing, echo = FALSE, eval = FALSE}
+BiGram      <- NGramTokenizer(all.corpus, Weka_control(min = 2, max = 2, delimiters = " \\r\\n\\t.,;:\"()?!"))
+rm(all.corpus)
+
+BiGram     <- data.frame(table(BiGram))
+BiGram     <- BiGram[order(BiGram$Freq, decreasing = TRUE),][1:10,]
+colnames(BiGram) <- c("Words","Count")
+```
+
+```{r echo=FALSE, eval=TRUE}
+#save rds
+#saveRDS(BiGram, file = "BiGram5pct.dataframe.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#read rds
+BiGram <- readRDS("BiGram5pct.dataframe.rds")
+```
+
+```{r BiGram_ggploting, echo=FALSE, eval=TRUE}
+ggplot(BiGram[1:10,], aes(reorder(Words, -Count), Count)) +
+         labs(x = "10 Highest Frequency Bigrams", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1)) +
+         geom_bar(stat = "identity", fill = I("blue"))
+```
+```{r echo = FALSE, eval = TRUE}
+rm(BiGram)
+```
+
+```{r TriGram_Tokenizing, echo = FALSE, eval = FALSE}
+TriGram      <- NGramTokenizer(all.corpus, Weka_control(min = 3, max = 3, delimiters = " \\r\\n\\t.,;:\"()?!"))
+rm(all.corpus)
+
+TriGram     <- data.frame(table(TriGram))
+TriGram     <- TriGram[order(TriGram$Freq, decreasing = TRUE),][1:10,]
+colnames(TriGram) <- c("Words","Count")
+```
+
+```{r echo=FALSE, eval=TRUE}
+#save rds
+#saveRDS(TriGram, file = "TriGram5pct.dataframe.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#read rds
+TriGram <- readRDS("TriGram5pct.dataframe.rds")
+```
+
+```{r TriGram_ggploting, echo=FALSE, eval=TRUE}
+ggplot(TriGram[1:10,], aes(reorder(Words, -Count), Count)) +
+         labs(x = "10 Highest Frequency Trigrams", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1)) +
+         geom_bar(stat = "identity", fill = I("blue"))
+```
+```{r echo = FALSE, eval = TRUE}
+rm(TriGram)
+```
+
+```{r FourGram_Tokenizing, echo = FALSE, eval = FALSE}
+FourGram      <- NGramTokenizer(all.corpus, Weka_control(min = 4, max = 4, delimiters = " \\r\\n\\t.,;:\"()?!"))
+rm(all.corpus)
+
+FourGram     <- data.frame(table(FourGram))
+FourGram     <- FourGram[order(FourGram$Freq, decreasing = TRUE),][1:10,]
+colnames(FourGram) <- c("Words","Count")
+```
+
+
+```{r echo=FALSE, eval=TRUE}
+#save rds
+#saveRDS(FourGram, file = "FourGram5pct.dataframe.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#read rds
+FourGram <- readRDS("FourGram5pct.dataframe.rds")
+```
+
+```{r FourGram_ggploting, echo=FALSE, eval=TRUE}
+ggplot(FourGram[1:10,], aes(reorder(Words, -Count), Count)) +
+         labs(x = "10 Highest Frequency FourGrams", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1)) +
+         geom_bar(stat = "identity", fill = I("blue"))
+```
+```{r echo = FALSE, eval = TRUE}
+rm(FourGram)
+```
+
+```{r FiveGram_Tokenizing, echo = FALSE, eval = TRUE}
+FiveGram      <- NGramTokenizer(all.corpus, Weka_control(min = 5, max = 5, delimiters = " \\r\\n\\t.,;:\"()?!"))
+rm(all.corpus)
+
+FiveGram     <- data.frame(table(FiveGram))
+FiveGram     <- FiveGram[order(FiveGram$Freq, decreasing = TRUE),][1:10,]
+colnames(FiveGram) <- c("Words","Count")
+```
+
+
+```{r echo=FALSE, eval=TRUE}
+#save rds
+saveRDS(FiveGram, file = "FiveGram5pct.dataframe.rds", ascii = FALSE, version = NULL, compress = TRUE)
+
+#read rds
+#FiveGram <- readRDS("FiveGram5pct.dataframe.rds")
+```
+
+```{r Fivegram_ggploting, echo=FALSE, eval=TRUE}
+ggplot(FiveGram[1:10,], aes(reorder(Words, -Count), Count)) +
+         labs(x = "10 Highest Frequency FiveGrams", y = "Frequency") +
+         theme(axis.text.x = element_text(angle = 60, size = 12, hjust = 1)) +
+         geom_bar(stat = "identity", fill = I("blue"))
+```
+
+
+
+   
+#### Step 4. Next step   
+  
+Once the N-grams model is created, it can be used to predict the next word based on user's input. The plan is to use backoff algorithm to predict by starting to find the matching word with FiveGrams. If there is no match, it will recursively try the second higher order n-grams to lower order n-grams until a reasonable probability is found.   
+
+The Shiny application will allows user to insert (type) the words and it will display the predicted word after running through the prediction algorithm.   
+
+Lastly, some slides will be created to pitch this word prediction product.   
+  
